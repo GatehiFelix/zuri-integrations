@@ -1,0 +1,27 @@
+{
+   "name": "zuri-integrations",
+   "version": "0.1.0",
+   "description": "ZuriDesk client integrations: signed call-event webhooks (outbox) and contacts pull API",
+   "type": "module",
+   "private": true,
+   "engines": {
+      "node": ">=18"
+   },
+   "scripts": {
+      "start": "node src/index.js",
+      "test": "node --test test/*.test.js",
+      "mock": "node dev/mock-endpoint.js",
+      "seed": "node dev/seed.js --yes",
+      "add-endpoint": "node scripts/add-endpoint.js"
+   },
+   "keywords": [],
+   "author": "",
+   "license": "ISC",
+   "dependencies": {
+      "bullmq": "^6.7.7",
+      "dotenv": "^16.6.1",
+      "ioredis": "^6.0.0",
+      "mysql2": "^3.24.6",
+      "sequelize": "^6.37.8"
+   }
+}
