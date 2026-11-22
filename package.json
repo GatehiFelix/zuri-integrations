@@ -12,14 +12,17 @@
       "test": "node --test test/*.test.js",
       "mock": "node dev/mock-endpoint.js",
       "seed": "node dev/seed.js --yes",
-      "add-endpoint": "node scripts/add-endpoint.js"
+      "add-endpoint": "node scripts/add-endpoint.js",
+      "agents": "node src/agents.js"
    },
    "keywords": [],
    "author": "",
    "license": "ISC",
    "dependencies": {
+      "asterisk-manager": "^0.2.0",
       "bullmq": "^6.7.7",
       "dotenv": "^16.6.1",
+      "express": "^5.3.0",
       "ioredis": "^6.0.0",
       "mysql2": "^3.24.6",
       "sequelize": "^6.37.8"

@@ -23,14 +23,31 @@ if (!['call_id', 'ingest', 'trx_id', 'event_time', 'created'].includes(timeSourc
   throw new Error(`Bad TIME_SOURCE: ${timeSource}`);
 }
 
-export const config = Object.freeze({
-  db: {
+const dbFromEnv = () => {
+  if (env.DB_URL) {
+    let u;
+    try { u = new URL(env.DB_URL); } catch { throw new Error('Bad DB_URL (expected mysql://user:pass@host:port/db)'); }
+    if (u.protocol !== 'mysql:') throw new Error(`DB_URL must start with mysql:// (got ${u.protocol})`);
+    return {
+      host: u.hostname,
+      port: u.port ? parseInt(u.port, 10) : 3306,
+      user: decodeURIComponent(u.username),
+      password: decodeURIComponent(u.password),
+      database: u.pathname.replace(/^\//, '') || 'zuri_integrations',
+    };
+  }
+  // legacy separate vars still work
+  return {
     host: env.DB_HOST || '127.0.0.1',
     port: int('DB_PORT', 3306),
     user: env.DB_USER,
     password: env.DB_PASSWORD,
     database: env.DB_NAME || 'zuri_integrations',
-  },
+  };
+}
+
+export const config = Object.freeze({
+    db: dbFromEnv(),
   queueLogTable: tableRef(env.QUEUE_LOG_TABLE || 'zuridev.queue_log'),
   timeSource,
   dbTzOffset: offset,

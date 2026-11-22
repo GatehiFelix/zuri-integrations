@@ -1,5 +1,4 @@
-// node scripts/add-endpoint.js --product 4000 --url https://client.example/hooks/zuri [--cc 254] [--rotate]
-// Creates (or updates) a tenant endpoint and prints the signing secret ONCE. Hand it to the client securely.
+
 import { parseArgs } from 'node:util';
 import crypto from 'node:crypto';
 import { pool } from '../src/db.js';

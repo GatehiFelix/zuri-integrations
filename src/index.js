@@ -3,8 +3,11 @@ import { pool } from "./db.js";
 import { pollOnce } from "./poller.js";
 import { startDeliveryWorker, sweepOrphans } from "./worker.js";
 import { getQueue, closeRedis } from "./queue.js";
+import IORedis from "ioredis";
+import { startApi } from "./api/index.js";
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
+
 
 // Self-rescheduling loop: a slow pass never overlaps the next one.
 function startLoop(name, fn, intervalMs) {
@@ -36,8 +39,12 @@ function startLoop(name, fn, intervalMs) {
 async function preflight() {
   await pool.query("SELECT 1 FROM integration_checkpoint LIMIT 1");
   await pool.query(`SELECT id FROM ${config.queueLogTable} LIMIT 1`);
-  const redis = await getQueue().client;
-  await redis.ping();
+    const redis = new IORedis(config.redisUrl, { maxRetriesPerRequest: 1 });
+  try {
+    await redis.ping();
+  } finally {
+    redis.disconnect();
+  }
 }
 
 async function main() {
@@ -58,6 +65,7 @@ async function main() {
     startLoop("poller", pollOnce, config.pollIntervalMs),
     startLoop("sweeper", sweepOrphans, config.sweepIntervalMs),
   ];
+  const stopApi = startApi({ pool });
 
   let shuttingDown = false;
   const shutdown = async (sig) => {
@@ -65,6 +73,7 @@ async function main() {
     shuttingDown = true;
     log(`${sig} received, draining...`);
     await Promise.all(stops.map((s) => s()));
+    await stopApi({ pool })
     await worker.close(); // waits for in-flight deliveries
     await closeRedis();
     await pool.end();

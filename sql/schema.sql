@@ -18,6 +18,21 @@ CREATE TABLE IF NOT EXISTS integration_endpoints (
   UNIQUE KEY uq_product (product_id)
 );
 
+CREATE TABLE integration_agent_state (
+  product_id   VARCHAR(32)  NOT NULL,
+  location     VARCHAR(128) NOT NULL,
+  member_name  VARCHAR(128) NULL,
+  in_queue     TINYINT(1)   NOT NULL,
+  paused       TINYINT(1)   NOT NULL DEFAULT 0,
+  pause_reason VARCHAR(255) NULL,
+  seq          BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  changed_at   DATETIME(3)  NOT NULL,
+  PRIMARY KEY (product_id, location)
+);
+
+ALTER TABLE integration_endpoints ADD COLUMN IF NOT EXISTS expose_agent_name TINYINT(1) NOT NULL DEFAULT 0;
+
+
 CREATE TABLE IF NOT EXISTS integration_checkpoint (
   name VARCHAR(50) PRIMARY KEY,                   -- 'inbound_enterqueue'
   last_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
