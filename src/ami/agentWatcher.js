@@ -17,6 +17,7 @@ const warn = (...a) => console.error(new Date().toISOString(), "[agent]", ...a);
 
 let endpoints = new Map(); // product_id -> { types:Set, exposeName }
 const cache = new Map();   // key -> { inQueue, paused }
+const names = new Map()
 let bootstrap = new Set(); // products with zero state rows at boot: first pass seeds silently
 let firstPass = true, connected = false, inFlight = false, inFlightSince = 0;
 let seen = new Set(), seenQueues = new Set();
@@ -47,9 +48,10 @@ async function refreshEndpoints() {
 }
 
 async function loadCache() {
-  const [rows] = await pool.query("SELECT product_id, location, in_queue, paused FROM integration_agent_state");
+  const [rows] = await pool.query("SELECT product_id, location, in_queue, paused, member_name FROM integration_agent_state");
   const have = new Set();
   for (const r of rows) {
+    if (r.member_name) names.set(key(r.product_id, r.location), r.member_name);
     cache.set(key(r.product_id, r.location), { inQueue: !!r.in_queue, paused: !!r.paused });
     have.add(String(r.product_id));
   }
@@ -66,6 +68,12 @@ async function apply(queue, location, obs) {
   const ep = endpoints.get(queue);
   if (!ep) return;
   const k = key(queue, location);
+  if (obs.name && names.get(k) !== obs.name) {
+  names.set(k, obs.name);
+  if (!DRY && cache.has(k))
+    await pool.query("UPDATE integration_agent_state SET member_name = ? WHERE product_id = ? AND location = ?",
+      [obs.name, queue, location]);
+}
   const prev = cache.get(k);
   if (!prev && !obs.inQueue) return;
   if (prev && prev.inQueue === obs.inQueue && (!obs.inQueue || prev.paused === obs.paused)) return;
