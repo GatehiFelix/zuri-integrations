@@ -1,3 +1,4 @@
+// src/lib/answered.js
 import { buildInboundEvent } from "./events.js";
 
 const agentNum = (loc) => loc.match(/\d+/)?.[0] ?? loc; // same rule as agentWatcher
@@ -15,14 +16,19 @@ export async function loadAgentIds(pool) {
   return m;
 }
 
-export function buildAnsweredEvent(r, ep, config, agentIds) {
-    console.log(`[answered] call=${r.event_time} agentCol=${JSON.stringify(r.agent)} cachedMsisdn=${msisdnByCall.has(String(r.event_time))} mapSize=${agentIds.size}`);
-  // borrow msisdn/E.164/started_at/call_id from the existing inbound builder
-  const base = buildInboundEvent({ ...r, event_name: "ENTERQUEUE" }, ep, config);
+export function buildAnsweredEvent(r, ep, config, agentIds, msisdnByCall) {
+  const name = r.agent && r.agent !== "null" ? String(r.agent).trim() : null;
+  // CONNECT rows often have no msisdn; take it from the call's ENTERQUEUE row (cached by the poller)
+  const msisdn = msisdnByCall.get(String(r.event_time)) || r.msisdn || null;
+
+  if (process.env.ANSWERED_DEBUG === "1")
+    console.log(`[answered] call=${r.event_time} agentCol=${JSON.stringify(r.agent)} msisdn=${msisdn} cached=${msisdnByCall.has(String(r.event_time))} mapSize=${agentIds.size}`);
+
+  // borrow E.164 / started_at / call_id from the existing inbound builder
+  const base = buildInboundEvent({ ...r, msisdn, event_name: "ENTERQUEUE" }, ep, config);
   if (!base) return null;
   const b = typeof base.payload === "string" ? JSON.parse(base.payload) : base.payload;
 
-  const name = r.agent && r.agent !== "null" ? String(r.agent).trim() : null;
   const id = name ? agentIds.get(`${ep.product_id}\u0000${name}`) ?? null : null;
   if (name && id === null) console.warn(`[answered] no agent id for "${name}" tenant=${ep.product_id} call=${b.call_id}`);
 

@@ -5,6 +5,8 @@ import { buildAnsweredEvent, loadAgentIds } from "./lib/answered.js";
 import { enqueue } from "./queue.js";
 
 const CP = "inbound_enterqueue";
+const msisdnByCall = new Map();
+
 
 async function readCheckpoint() {
   const [rows] = await pool.query(
@@ -73,13 +75,17 @@ export async function pollOnce() {
 
     const events = [];
     for (const r of rows) {
+      if (r.event_name === "ENTERQUEUE" && r.msisdn) {
+  msisdnByCall.set(String(r.event_time), r.msisdn);
+  if (msisdnByCall.size > 5000) msisdnByCall.delete(msisdnByCall.keys().next().value);
+}
       const ep = byQueue.get(String(r.queue_id).trim());
       if (!ep) continue;
       const ev =
         r.event_name === "ENTERQUEUE" && ep.types.has("call.inbound")
           ? buildInboundEvent(r, ep, config)
           : r.event_name === "CONNECT" && ep.types.has("call.answered")
-            ? buildAnsweredEvent(r, ep, config, agentIds)
+            ? buildAnsweredEvent(r, ep, config, agentIds, msisdnByCall)
             : null;
       if (ev) events.push({ productId: ep.product_id, ...ev });
       if (ev) events.push({ productId: ep.product_id, ...ev });
