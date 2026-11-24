@@ -79,8 +79,8 @@ export async function pollOnce() {
       const ids = [];
       for (const ev of events) {
         const [res] = await c.query(
-          `INSERT IGNORE INTO integration_outbox (product_id, event_id, event_type, payload)
-           VALUES (?, ?, ?, ?)`,
+          `INSERT IGNORE INTO integration_outbox (product_id, event_id, event_type, payload, next_attempt_at)
+            VALUES (?, ?, ?, ?, NOW())`,
           [ev.productId, ev.eventId, ev.eventType, ev.payload],
         );
         if (res.affectedRows === 1) ids.push(res.insertId);

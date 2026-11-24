@@ -1,7 +1,7 @@
 import express from "express";
 import { makeAuth, makeRateLimit } from "./auth.js";
 import { notFound, errorHandler } from "./errors.js";
-import v1Routes from "./routes/v1/index.js";
+import v1Routes from "../routes/v1/index.js";
 
 // App wiring only: no route logic lives here.
 export function createApp({ pool, rateLimit = 60, now } = {}) {
