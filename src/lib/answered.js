@@ -16,6 +16,7 @@ export async function loadAgentIds(pool) {
 }
 
 export function buildAnsweredEvent(r, ep, config, agentIds) {
+    console.log(`[answered] call=${r.event_time} agentCol=${JSON.stringify(r.agent)} cachedMsisdn=${msisdnByCall.has(String(r.event_time))} mapSize=${agentIds.size}`);
   // borrow msisdn/E.164/started_at/call_id from the existing inbound builder
   const base = buildInboundEvent({ ...r, event_name: "ENTERQUEUE" }, ep, config);
   if (!base) return null;
