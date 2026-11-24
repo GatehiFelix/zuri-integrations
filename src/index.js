@@ -5,6 +5,7 @@ import { startDeliveryWorker, sweepOrphans } from "./worker.js";
 import { getQueue, closeRedis } from "./queue.js";
 import IORedis from "ioredis";
 import { startApi } from "./api/index.js";
+import { startAgentWatcher } from "./ami/agentWatcher.js";
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
@@ -61,6 +62,8 @@ async function main() {
   );
 
   const worker = startDeliveryWorker();
+  startAgentWatcher().catch((e) =>
+    console.error(new Date().toISOString(), "[agent] failed to start:", e.message));
   const stops = [
     startLoop("poller", pollOnce, config.pollIntervalMs),
     startLoop("sweeper", sweepOrphans, config.sweepIntervalMs),
