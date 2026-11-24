@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { h } from "../../util.js";
+import { h } from "../../api/util.js";
 
 // GET /v1/account  -> { tenant, prefixes }
 export default function accountRoutes({ pool }) {

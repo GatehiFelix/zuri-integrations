@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { h, str, ISO, MAX_LIMIT } from "../../util.js";
+import { h, str, ISO, MAX_LIMIT } from "../../api/util.js";
 
 // GET /v1/campaigns[?include_deleted=true]
 export default function campaignRoutes({ pool }) {
