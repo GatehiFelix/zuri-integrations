@@ -40,7 +40,7 @@ async function refreshEndpoints() {
     "SELECT product_id, event_types, expose_agent_name FROM integration_endpoints WHERE enabled = 1");
   const m = new Map();
   for (const r of rows) {
-    const types = new Set(r.event_types.split(",").map((s) => s.trim()).filter((t) => TYPES.includes(t)));
+    const types = new Set(r.event_types.split(",").map((s) => s.trim()).filter((t) => [...TYPES, "call.answered"].includes(t)));
     if (types.size) m.set(String(r.product_id), { types, exposeName: !!r.expose_agent_name });
   }
   endpoints = m;
@@ -98,7 +98,7 @@ async function apply(queue, location, obs) {
       `INSERT INTO integration_agent_state
          (product_id, location, member_name, in_queue, paused, pause_reason, seq, changed_at)
        VALUES (?,?,?,?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE member_name=VALUES(member_name), in_queue=VALUES(in_queue),
+       ON DUPLICATE KEY UPDATE member_name=COALESCE(VALUES(member_name), member_name), in_queue=VALUES(in_queue),
          paused=VALUES(paused), pause_reason=VALUES(pause_reason), seq=VALUES(seq), changed_at=VALUES(changed_at)`,
       [queue, location, obs.name || null, obs.inQueue ? 1 : 0, obs.paused ? 1 : 0, obs.reason || null, seq, now]);
     if (!type || silent || !ep.types.has(type)) return [];

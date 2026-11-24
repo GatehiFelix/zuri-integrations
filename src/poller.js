@@ -1,6 +1,7 @@
 import { pool, withTx } from "./db.js";
 import { config } from "./config.js";
 import { buildInboundEvent } from "./lib/events.js";
+import { buildAnsweredEvent, loadAgentIds } from "./lib/answered.js";
 import { enqueue } from "./queue.js";
 
 const CP = "inbound_enterqueue";
@@ -36,26 +37,31 @@ export async function pollOnce() {
   const last = await ensureCheckpoint();
 
   const [endpoints] = await pool.query(
-    "SELECT product_id, default_country_code, event_types FROM integration_endpoints WHERE enabled = 1",
+    "SELECT product_id, default_country_code, event_types, expose_agent_name FROM integration_endpoints WHERE enabled = 1",
   );
   const byQueue = new Map(
     endpoints
-      .filter((e) =>
-        e.event_types
-          .split(",")
-          .map((s) => s.trim())
-          .includes("call.inbound"),
+      .map((e) => ({
+        ...e,
+        types: new Set(e.event_types.split(",").map((s) => s.trim())),
+      }))
+      .filter(
+        (e) => e.types.has("call.inbound") || e.types.has("call.answered"),
       )
       .map((e) => [String(e.product_id), e]),
   );
-
+  const agentIds = [...byQueue.values()].some((e) =>
+    e.types.has("call.answered"),
+  )
+    ? await loadAgentIds(pool)
+    : new Map();
   let cursor = Math.max(last - config.pollOverlap, 0);
   let queued = 0;
   let scanned = 0;
 
   for (;;) {
     const [rows] = await pool.query(
-      `SELECT id, trx_id, event_time, queue_id, event_name, msisdn, created
+      `SELECT id, trx_id, event_time, queue_id, event_name,delay_time , msisdn, created
          FROM ${config.queueLogTable}
         WHERE id > ?
         ORDER BY id ASC
@@ -69,7 +75,13 @@ export async function pollOnce() {
     for (const r of rows) {
       const ep = byQueue.get(String(r.queue_id).trim());
       if (!ep) continue;
-      const ev = buildInboundEvent(r, ep, config);
+      const ev =
+        r.event_name === "ENTERQUEUE" && ep.types.has("call.inbound")
+          ? buildInboundEvent(r, ep, config)
+          : r.event_name === "CONNECT" && ep.types.has("call.answered")
+            ? buildAnsweredEvent(r, ep, config, agentIds)
+            : null;
+      if (ev) events.push({ productId: ep.product_id, ...ev });
       if (ev) events.push({ productId: ep.product_id, ...ev });
     }
 
