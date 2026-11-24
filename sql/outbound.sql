@@ -1,28 +1,13 @@
--- Outbound (pull API) objects. Run as an admin user, NOT as zuri_integ.
--- CRM tables are assumed to live in schema `zuridev`. For a local DB:
---   sed 's/zuridev\./YOUR_LOCAL_DB./g' sql/outbound.sql | mysql -u root zuri_integrations
+-- Outbound (pull API) views. Run as an ADMIN user, NOT zuri_integ, AFTER sql/schema.sql.
+-- CRM tables are written as schema `zuridev` (dev). Point them at the real CRM schema when you run it:
+--   dev:   mysql -u root -p zuri_integrations < sql/outbound.sql
+--   prod:  sed 's/zuridev\./asteriskdb./g' sql/outbound.sql | mysql -u <admin> -p zuri_integrations
 --
--- Views are SQL SECURITY DEFINER, so zuri_integ only needs SELECT on the views
--- (no grant on the CRM tables themselves).
+-- Views are SQL SECURITY DEFINER: the admin running this script becomes the definer and must keep SELECT on the
+-- CRM tables. zuri_integ only gets SELECT on the views (see sql/grants.sql), never on the CRM tables.
 
 USE zuri_integrations;
 
--- ---------------------------------------------------------------- API keys
-CREATE TABLE IF NOT EXISTS integration_api_keys (
-  id           INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  product_id   BIGINT UNSIGNED NOT NULL,                 -- tenant
-  key_prefix   CHAR(8) NOT NULL,                         -- public lookup part of the key
-  key_hash     CHAR(64) NOT NULL,                        -- sha256(full key), hex
-  label        VARCHAR(100) NULL,
-  status       ENUM('active','revoked') NOT NULL DEFAULT 'active',
-  created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  last_used_at TIMESTAMP NULL DEFAULT NULL,
-  revoked_at   TIMESTAMP NULL DEFAULT NULL,
-  UNIQUE KEY uq_key_prefix (key_prefix),
-  KEY idx_product (product_id, status)
-) ENGINE=InnoDB;
-
--- ------------------------------------------------------------------ views
 -- Campaigns of a tenant (tenant = campaigns.product_id)
 CREATE OR REPLACE SQL SECURITY DEFINER VIEW v_export_campaigns AS
 SELECT
@@ -57,9 +42,3 @@ JOIN zuridev.clients   cl ON cl.id = cc.client_id AND cl.product_id = ca.product
 CREATE OR REPLACE SQL SECURITY DEFINER VIEW v_export_account AS
 SELECT cl.product_id AS tenant, cl.prefix AS prefix
 FROM zuridev.clients cl;
-
--- ----------------------------------------------------------------- grants
--- GRANT SELECT ON zuri_integrations.v_export_campaigns TO 'zuri_integ'@'127.0.0.1';
--- GRANT SELECT ON zuri_integrations.v_export_contacts  TO 'zuri_integ'@'127.0.0.1';
--- GRANT SELECT ON zuri_integrations.v_export_account   TO 'zuri_integ'@'127.0.0.1';
--- (integration_api_keys is covered by the existing SELECT/INSERT/UPDATE/DELETE on zuri_integrations.*)
