@@ -7,6 +7,7 @@ import IORedis from "ioredis";
 import { startApi } from "./api/index.js";
 import { startAgentWatcher } from "./ami/agentWatcher.js";
 import { startCdrPoller } from "./cdrPoller.js";
+import { startRecordingPoller } from "./recordingPoller.js";
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
@@ -66,6 +67,7 @@ async function main() {
   startAgentWatcher().catch((e) =>
     console.error(new Date().toISOString(), "[agent] failed to start:", e.message));
   startCdrPoller();
+  startRecordingPoller();
   const stops = [
     startLoop("poller", pollOnce, config.pollIntervalMs),
     startLoop("sweeper", sweepOrphans, config.sweepIntervalMs),
