@@ -10,7 +10,10 @@ export async function loadAgentIds(pool) {
   const m = new Map();
   for (const r of rows) {
     const k = `${r.product_id}\u0000${r.member_name.trim()}`;
-    const id = agentNum(r.location);
+    const looksLikeLoc = (s) => /^(Local|SIP|PJSIP|IAX2)\//i.test(s) || /^\d+$/.test(s);
+const id = name
+  ? (agentIds.get(`${ep.product_id}\u0000${name}`) ?? (looksLikeLoc(name) ? agentNum(name) : null))
+  : null;
     m.set(k, m.has(k) && m.get(k) !== id ? null : id);
   }
   return m;
