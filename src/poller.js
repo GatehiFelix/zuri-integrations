@@ -63,7 +63,7 @@ export async function pollOnce() {
 
   for (;;) {
     const [rows] = await pool.query(
-      `SELECT id, trx_id, event_time, queue_id, event_name,delay_time , msisdn, created
+      `SELECT id, trx_id, event_time,  queue_id, agent, event_name,delay_time , msisdn, created
          FROM ${config.queueLogTable}
         WHERE id > ?
         ORDER BY id ASC
@@ -87,7 +87,6 @@ export async function pollOnce() {
           : r.event_name === "CONNECT" && ep.types.has("call.answered")
             ? buildAnsweredEvent(r, ep, config, agentIds, msisdnByCall)
             : null;
-      if (ev) events.push({ productId: ep.product_id, ...ev });
       if (ev) events.push({ productId: ep.product_id, ...ev });
     }
 
