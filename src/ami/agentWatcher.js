@@ -1,6 +1,7 @@
 import AsteriskManager from "asterisk-manager";
 import { pool, withTx } from "../db.js";
 import { enqueue } from "../queue.js";
+import { noteAnswered } from "../lib/answeredAgents.js";
 
 const TYPES = ["agent.queue.joined", "agent.queue.left", "agent.paused", "agent.unpaused"];
 const key = (q, l) => `${q}\u0000${l}`;
@@ -149,6 +150,12 @@ function onEvent(e) {
 
   switch (e.event) {
     case "QueueParams": seenQueues.add(q); break;
+        case "AgentConnect":
+      if (endpoints.has(q)) {
+        noteAnswered(q, loc(e), name(e));
+        if (DEBUG) log("AgentConnect", `queue=${q}`, `iface=${loc(e)}`, `name=${name(e) ?? "-"}`);
+      }
+      break;
     case "QueueMember": // QueueStatus replay
       seen.add(key(q, loc(e)));
       serial(() => apply(q, loc(e), { inQueue: true, paused: paused(e), reason: reason(e), name: name(e) }));

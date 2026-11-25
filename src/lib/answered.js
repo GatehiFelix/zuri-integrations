@@ -1,11 +1,12 @@
 // src/lib/answered.js
 import { buildInboundEvent } from "./events.js";
+import { resolveForCall } from "./answeredAgents.js";
 
 const agentNum = (loc) => loc.match(/\d+/)?.[0] ?? loc; // same rule as agentWatcher
 const looksLikeLoc = (s) => /^(Local|SIP|PJSIP|IAX2)\//i.test(s) || /^\d+$/.test(s);
 
 const firstSeen = new Map(); // call id -> when the poller first saw a CONNECT row with no agent
-const GRACE_MS = Number(process.env.ANSWERED_GRACE_SEC || 15) * 1000;
+const GRACE_MS = Number(process.env.ANSWERED_GRACE_SEC || 5) * 1000;
 
 // "<product>\0<member name>" -> agent id (null if two locations share a name)
 export async function loadAgentIds(pool) {
@@ -22,10 +23,13 @@ export async function loadAgentIds(pool) {
 
 export function buildAnsweredEvent(r, ep, config, agentIds, msisdnByCall) {
   const name = r.agent && r.agent !== "null" ? String(r.agent).trim() : null;
-
-  // agent column can be empty for a moment after the CONNECT row is written: wait, re-read next pass
   const key = String(r.event_time);
-  if (!name) {
+
+  // who answered, from AMI AgentConnect (queue_log leaves the agent column empty until the call ends)
+  const ami = resolveForCall(key, ep.product_id, Number(r.trx_id) * 1000);
+
+  // only wait if we have no agent from either source yet
+  if (!name && !ami) {
     const t = firstSeen.get(key) ?? Date.now();
     firstSeen.set(key, t);
     if (Date.now() - t < GRACE_MS) return null;
@@ -38,17 +42,20 @@ export function buildAnsweredEvent(r, ep, config, agentIds, msisdnByCall) {
   const msisdn = msisdnByCall.get(key) || r.msisdn || null;
 
   if (process.env.ANSWERED_DEBUG === "1")
-    console.log(`[answered] call=${r.event_time} agentCol=${JSON.stringify(r.agent)} msisdn=${msisdn} cached=${msisdnByCall.has(key)} mapSize=${agentIds.size}`);
+    console.log(`[answered] call=${r.event_time} agentCol=${JSON.stringify(r.agent)} ami=${ami ? ami.iface : null} msisdn=${msisdn} cached=${msisdnByCall.has(key)} mapSize=${agentIds.size}`);
 
   // borrow E.164 / started_at / call_id from the existing inbound builder
   const base = buildInboundEvent({ ...r, msisdn, event_name: "ENTERQUEUE" }, ep, config);
   if (!base) return null;
   const b = typeof base.payload === "string" ? JSON.parse(base.payload) : base.payload;
 
-  const id = name
-    ? (agentIds.get(`${ep.product_id}\u0000${name}`) ?? (looksLikeLoc(name) ? agentNum(name) : null))
-    : null;
-  if (name && id === null) console.warn(`[answered] no agent id for "${name}" tenant=${ep.product_id} call=${b.call_id}`);
+  const id = ami
+    ? agentNum(ami.iface)
+    : name
+      ? (agentIds.get(`${ep.product_id}\u0000${name}`) ?? (looksLikeLoc(name) ? agentNum(name) : null))
+      : null;
+  const outName = name || ami?.name || null;
+  if (id === null) console.warn(`[answered] no agent id for call=${b.call_id} tenant=${ep.product_id} agentCol=${JSON.stringify(r.agent)}`);
 
   const eventId = `answered:${b.call_id}`;
   const payload = {
@@ -58,7 +65,7 @@ export function buildAnsweredEvent(r, ep, config, agentIds, msisdnByCall) {
     started_at: b.started_at,
     answered_at: new Date(Number(r.trx_id) * 1000).toISOString(), // trx_id = answer epoch
     wait_secs: r.delay_time == null ? null : Number(r.delay_time),
-    agent: { id, ...(ep.expose_agent_name && name ? { name } : {}) },
+    agent: { id, ...(ep.expose_agent_name && outName ? { name: outName } : {}) },
   };
   return { eventId, eventType: "call.answered", payload: JSON.stringify(payload) };
 }
